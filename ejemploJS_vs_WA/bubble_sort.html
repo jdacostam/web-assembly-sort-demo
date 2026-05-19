@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Sort Lento: JS vs WebAssembly</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        
+        .input-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-js {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .btn-js:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        .btn-wasm {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .btn-wasm:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+        
+        .results {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .result-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .result-value {
+            color: #333;
+            font-size: 0.95em;
+        }
+        
+        .time {
+            color: #f5576c;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+        
+        .winner {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .speedup {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            color: #2d3436;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 15px;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🫧 Bubble Sort Ultra Lento</h1>
+        <p class="subtitle">JavaScript vs WebAssembly</p>
+        
+        <div id="status"></div>
+        
+        <div class="warning">
+            ⚠️ Bubble Sort intencionalmente LENTO con operaciones extra. Recomendado: 1000-3000 elementos.
+        </div>
+        
+        <div class="input-group">
+            <label for="number">Tamaño del array (número de elementos):</label>
+            <input type="number" id="number" min="100" max="5000" value="2000" placeholder="Ingresa el tamaño">
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-js" id="btnJS" onclick="calculateJS()">
+                🟡 Ordenar con JS
+            </button>
+            <button class="btn-wasm" id="btnWasm" onclick="calculateWasm()" disabled>
+                ⚡ Ordenar con WASM
+            </button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let wasmInstance = null;
+        let jsTime = null;
+        let wasmTime = null;
+        
+        // Función Bubble Sort súper lenta en JavaScript
+        function slowBubbleSortJS(size) {
+            // Crear array con números en orden inverso (peor caso)
+            let arr = [];
+            for (let i = 0; i < size; i++) {
+                arr[i] = size - i;
+            }
+            
+            // Bubble Sort con operaciones extra
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size - 1; j++) {
+                    let a = arr[j];
+                    let b = arr[j + 1];
+                    
+                    // Operaciones innecesarias
+                    for (let k = 0; k < 1000; k++) {
+                        a = Math.sin(a * 0.001) * Math.cos(b * 0.001);
+                        b = Math.sqrt(Math.abs(a * b)) + 1.0;
+                    }
+                    
+                    if (arr[j] > arr[j + 1]) {
+                        let temp = arr[j];
+                        arr[j] = arr[j + 1];
+                        arr[j + 1] = temp;
+                    }
+                }
+            }
+            
+            return arr[0];
+        }
+        
+        function calculateJS() {
+            const size = parseInt(document.getElementById('number').value);
+            if (isNaN(size) || size < 1) {
+                alert('Por favor ingresa un tamaño válido mayor a 0');
+                return;
+            }
+            
+            const btn = document.getElementById('btnJS');
+            btn.disabled = true;
+            document.getElementById('results').innerHTML = '<div class="loading">⏳ Ordenando con JavaScript...<br><small>Esto puede tardar varios segundos</small></div>';
+            
+            // Bloqueamos la UI directamente
+            const startTime = performance.now();
+            const result = slowBubbleSortJS(size);
+            const endTime = performance.now();
+            const timeTaken = (endTime - startTime).toFixed(2);
+            
+            jsTime = parseFloat(timeTaken);
+            displayResult('JavaScript', result, timeTaken, size);
+            btn.disabled = false;
+        }
+        
+        function calculateWasm() {
+            const size = parseInt(document.getElementById('number').value);
+            if (isNaN(size) || size < 1) {
+                alert('Por favor ingresa un tamaño válido mayor a 0');
+                return;
+            }
+            
+            if (!wasmInstance) {
+                alert('WebAssembly no está cargado.');
+                return;
+            }
+            
+            const btn = document.getElementById('btnWasm');
+            btn.disabled = true;
+            document.getElementById('results').innerHTML = '<div class="loading">⏳ Ordenando con WebAssembly...<br><small>Esto puede tardar varios segundos</small></div>';
+            
+            // Bloqueamos la UI directamente
+            const startTime = performance.now();
+            const result = wasmInstance.exports.slowBubbleSort(size);
+            const endTime = performance.now();
+            const timeTaken = (endTime - startTime).toFixed(2);
+            
+            wasmTime = parseFloat(timeTaken);
+            displayResult('WebAssembly', result, timeTaken, size);
+            btn.disabled = false;
+        }
+        
+        function displayResult(method, result, time, size) {
+            const resultsDiv = document.getElementById('results');
+            
+            let speedupHTML = '';
+            if (jsTime !== null && wasmTime !== null) {
+                const speedup = (jsTime / wasmTime).toFixed(2);
+                const faster = speedup > 1 ? 'WebAssembly' : 'JavaScript';
+                const times = speedup > 1 ? speedup : (wasmTime / jsTime).toFixed(2);
+                speedupHTML = `
+                    <div class="speedup">
+                        🚀 ${faster} es <strong>${times}x</strong> más rápido
+                    </div>
+                `;
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="results">
+                    <div class="result-item">
+                        <div class="result-label">Método:</div>
+                        <div class="result-value">${method}</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Tamaño del array:</div>
+                        <div class="result-value">${size} elementos</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Primer elemento ordenado:</div>
+                        <div class="result-value">${result}</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Tiempo de ejecución:</div>
+                        <div class="result-value"><span class="time">${time} ms</span> (${(time/1000).toFixed(2)} segundos)</div>
+                    </div>
+                    ${speedupHTML}
+                </div>
+            `;
+        }
+        
+        // Cargar WebAssembly
+        async function loadWasm() {
+            try {
+                const response = await fetch('factorial.wasm');
+                const buffer = await response.arrayBuffer();
+                const module = await WebAssembly.instantiate(buffer);
+                
+                wasmInstance = module.instance;
+                
+                document.getElementById('status').innerHTML = '✅ WebAssembly cargado correctamente';
+                document.getElementById('status').className = 'status success';
+                document.getElementById('btnWasm').disabled = false;
+                
+                console.log('✅ WebAssembly cargado correctamente');
+            } catch (e) {
+                document.getElementById('status').innerHTML = '❌ Error al cargar WebAssembly: ' + e.message;
+                document.getElementById('status').className = 'status error';
+                console.error('⚠️ No se pudo cargar WebAssembly:', e);
+            }
+        }
+        
+        // Cargar al iniciar
+        window.onload = loadWasm;
+    </script>
+</body>
+</html>
